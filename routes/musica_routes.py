@@ -2,7 +2,7 @@ from flask import Blueprint, request, jsonify
 from extensions import db
 from models.artista import Artista
 from models.musica import Musica
-from sqlalchemy import select
+from sqlalchemy import select, func
 from sqlalchemy.orm import joinedload
 
 musica_bp = Blueprint("musica", __name__, url_prefix="/musicas")
@@ -119,4 +119,42 @@ def buscar_musica_detalhes(musica_id):
                 "nacionalidade": musica.artista.nacionalidade,
             },
         }
+    )
+
+
+@musica_bp.route("/abaixo-media-artista", methods=["GET"])
+def musicas_abaixo_media_artista():
+    media_por_artista = (
+        select(
+            Musica.artista_id,
+            func.avg(Musica.duracao_segundos).label("media"),
+        )
+        .group_by(Musica.artista_id)
+        .subquery()
+    )
+
+    stmt = (
+        select(Musica)
+        .join(Artista, Artista.id == Musica.artista_id)
+        .join(media_por_artista, media_por_artista.c.artista_id == Musica.artista_id)
+        .where(Musica.duracao_segundos < media_por_artista.c.media)
+        .options(joinedload(Musica.artista))
+        .order_by(Artista.nome, Musica.duracao_segundos)
+    )
+
+    musicas = db.session.execute(stmt).scalars().all()
+
+    return jsonify(
+        [
+            {
+                "id": m.id,
+                "titulo": m.titulo,
+                "duracao_segundos": m.duracao_segundos,
+                "artista": {
+                    "id": m.artista.id,
+                    "nome": m.artista.nome,
+                },
+            }
+            for m in musicas
+        ]
     )
