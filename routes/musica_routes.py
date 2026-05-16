@@ -2,6 +2,9 @@ from flask import Blueprint, request, jsonify
 from extensions import db
 from models.artista import Artista
 from models.musica import Musica
+from models.musica_playlist import MusicaPlaylist
+from models.playlist import Playlist
+from models.usuario import Usuario
 from sqlalchemy import select, func
 from sqlalchemy.orm import joinedload
 
@@ -157,4 +160,46 @@ def musicas_abaixo_media_artista():
             }
             for m in musicas
         ]
+    )
+
+
+@musica_bp.route("/dono-playlist/<string:titulo>", methods=["GET"])
+def dono_playlist_por_musica(titulo):
+    stmt = (
+        select(
+            Usuario.id,
+            Usuario.username,
+            Playlist.nome.label("playlist_nome"),
+        )
+        .select_from(Musica)
+        .join(MusicaPlaylist, MusicaPlaylist.musica_id == Musica.id)
+        .join(
+            Playlist,
+            (Playlist.playlist_id == MusicaPlaylist.playlist_id)
+            & (Playlist.usuario_id == MusicaPlaylist.usuario_id),
+        )
+        .join(Usuario, Usuario.id == Playlist.usuario_id)
+        .where(Musica.titulo == titulo)
+        .distinct()
+    )
+
+    resultados = db.session.execute(stmt).all()
+
+    if not resultados:
+        return jsonify(
+            {"erro": f"Nenhuma playlist encontrada com a música '{titulo}'"}
+        ), 404
+
+    return jsonify(
+        {
+            "musica": titulo,
+            "donos": [
+                {
+                    "usuario_id": r.id,
+                    "username": r.username,
+                    "playlist": r.playlist_nome,
+                }
+                for r in resultados
+            ],
+        }
     )
