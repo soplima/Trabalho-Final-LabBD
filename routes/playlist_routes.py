@@ -3,7 +3,9 @@ from extensions import db
 from models.playlist import Playlist
 from models.usuario import Usuario
 from models.musica import Musica
-from models.musica_playlist import MusicaPlaylist  # ← adicionar
+from models.musica_playlist import MusicaPlaylist
+from sqlalchemy import select, func
+
 
 playlist_bp = Blueprint("playlist", __name__, url_prefix="/playlists")
 
@@ -88,3 +90,36 @@ def remover_musica(playlist_id, usuario_id, musica_id):
     db.session.commit()
 
     return jsonify({"mensagem": "Música removida com sucesso"}), 200
+
+
+@playlist_bp.route("/contagem-musicas", methods=["GET"])
+def contar_musicas_na_playlist():
+    stmt = (
+        select(
+            Playlist.playlist_id,
+            Playlist.usuario_id,
+            Playlist.nome,
+            func.count(MusicaPlaylist.musica_id).label("total_musicas"),
+        )
+        .outerjoin(
+            MusicaPlaylist,
+            (MusicaPlaylist.playlist_id == Playlist.playlist_id)
+            & (MusicaPlaylist.usuario_id == Playlist.usuario_id),
+        )
+        .group_by(Playlist.playlist_id, Playlist.usuario_id, Playlist.nome)
+        .order_by(func.count(MusicaPlaylist.musica_id).desc())
+    )
+
+    resultados = db.session.execute(stmt).all()
+
+    return jsonify(
+        [
+            {
+                "playlist_id": r.playlist_id,
+                "usuario_id": r.usuario_id,
+                "nome": r.nome,
+                "total_musicas": r.total_musicas,
+            }
+            for r in resultados
+        ]
+    )
