@@ -2,6 +2,10 @@ from flask import Blueprint, request, jsonify
 from extensions import db
 from models.usuario import Usuario
 from models.playlist import Playlist
+from models.musica_playlist import MusicaPlaylist
+from models.musica import Musica
+from models.artista import Artista
+
 from sqlalchemy import select
 
 usuario_bp = Blueprint("usuario", __name__, url_prefix="/usuarios")
@@ -43,5 +47,49 @@ def listar_playlists(username):
         {
             "usuario": usuario.username,
             "playlists": playlists,
+        }
+    )
+
+
+@usuario_bp.route(
+    "/<string:username>/musicas/artista/<string:nome_artista>", methods=["GET"]
+)
+def musicas_por_artista_na_playlist(username, nome_artista):
+    stmt = (
+        select(Musica)
+        .join(MusicaPlaylist, MusicaPlaylist.musica_id == Musica.id)
+        .join(
+            Playlist,
+            (Playlist.playlist_id == MusicaPlaylist.playlist_id)
+            & (Playlist.usuario_id == MusicaPlaylist.usuario_id),
+        )
+        .join(Usuario, Usuario.id == Playlist.usuario_id)
+        .join(Artista, Artista.id == Musica.artista_id)
+        .where(Usuario.username == username)
+        .where(Artista.nome == nome_artista)
+        .distinct()
+    )
+
+    musicas = db.session.execute(stmt).scalars().all()
+
+    if not musicas:
+        return jsonify(
+            {
+                "erro": f"Nenhuma música de '{nome_artista}' encontrada nas playlists de '{username}'"
+            }
+        ), 404
+
+    return jsonify(
+        {
+            "usuario": username,
+            "artista": nome_artista,
+            "musicas": [
+                {
+                    "id": m.id,
+                    "titulo": m.titulo,
+                    "duracao_segundos": m.duracao_segundos,
+                }
+                for m in musicas
+            ],
         }
     )
