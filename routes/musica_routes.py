@@ -203,3 +203,54 @@ def dono_playlist_por_musica(titulo):
             ],
         }
     )
+
+
+@musica_bp.route(
+    "/maiores-que-top/<string:nome_artista>/vs/<string:nome_referencia>",
+    methods=["GET"],
+)
+def maiores_que_top_artista(nome_artista, nome_referencia):
+    max_duracao_referencia = (
+        select(func.max(Musica.duracao_segundos))
+        .join(Artista, Artista.id == Musica.artista_id)
+        .where(Artista.nome == nome_referencia)
+        .scalar_subquery()
+    )
+
+    stmt = (
+        select(Musica)
+        .join(Artista, Artista.id == Musica.artista_id)
+        .where(Artista.nome == nome_artista)
+        .where(Musica.duracao_segundos > max_duracao_referencia)
+        .options(joinedload(Musica.artista))
+        .order_by(Musica.duracao_segundos.desc())
+    )
+
+    musicas = db.session.execute(stmt).scalars().all()
+
+    if not musicas:
+        return jsonify(
+            {
+                "mensagem": f"Nenhuma música de '{nome_artista}' é mais longa que a maior música de '{nome_referencia}'"
+            }
+        ), 404
+
+    return jsonify(
+        {
+            "artista": nome_artista,
+            "referencia": nome_referencia,
+            "max_duracao_referencia": db.session.execute(
+                select(func.max(Musica.duracao_segundos))
+                .join(Artista, Artista.id == Musica.artista_id)
+                .where(Artista.nome == nome_referencia)
+            ).scalar(),
+            "musicas": [
+                {
+                    "id": m.id,
+                    "titulo": m.titulo,
+                    "duracao_segundos": m.duracao_segundos,
+                }
+                for m in musicas
+            ],
+        }
+    )
