@@ -123,3 +123,45 @@ def contar_musicas_na_playlist():
             for r in resultados
         ]
     )
+
+
+@playlist_bp.route("/tempo-total", methods=["GET"])
+def tempo_total_por_playlist():
+    stmt = (
+        select(
+            Playlist.playlist_id,
+            Playlist.usuario_id,
+            Playlist.nome,
+            Usuario.username,
+            func.coalesce(func.sum(Musica.duracao_segundos), 0).label("tempo_total"),
+        )
+        .join(Usuario, Usuario.id == Playlist.usuario_id)
+        .outerjoin(
+            MusicaPlaylist,
+            (MusicaPlaylist.playlist_id == Playlist.playlist_id)
+            & (MusicaPlaylist.usuario_id == Playlist.usuario_id),
+        )
+        .outerjoin(Musica, Musica.id == MusicaPlaylist.musica_id)
+        .group_by(
+            Playlist.playlist_id,
+            Playlist.usuario_id,
+            Playlist.nome,
+            Usuario.username,
+        )
+        .order_by(func.sum(Musica.duracao_segundos).desc())
+    )
+
+    resultados = db.session.execute(stmt).all()
+
+    return jsonify(
+        [
+            {
+                "playlist_id": r.playlist_id,
+                "usuario_id": r.usuario_id,
+                "nome": r.nome,
+                "username": r.username,
+                "tempo_total_segundos": r.tempo_total,
+            }
+            for r in resultados
+        ]
+    )
