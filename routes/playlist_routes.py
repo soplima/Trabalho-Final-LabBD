@@ -207,3 +207,76 @@ def musicas_da_playlist(nome_playlist):
             ],
         }
     )
+
+
+@playlist_bp.route("/transferir-musica", methods=["POST"])
+def transferir_musica():
+    data = request.get_json()
+
+    campos = [
+        "musica_id",
+        "usuario_id",
+        "playlist_origem_id",
+        "playlist_destino_id",
+        "ordem_destino",
+    ]
+    if not data or not all(data.get(c) is not None for c in campos):
+        return jsonify({"error": f"Campos obrigatórios: {campos}"}), 400
+
+    musica_id = data["musica_id"]
+    usuario_id = data["usuario_id"]
+    playlist_orig_id = data["playlist_origem_id"]
+    playlist_dest_id = data["playlist_destino_id"]
+    ordem_destino = data["ordem_destino"]
+
+    try:
+        origem = db.session.get(Playlist, (playlist_orig_id, usuario_id))
+        if not origem:
+            return jsonify({"error": "Playlist de origem não encontrada"}), 404
+
+        destino = db.session.get(Playlist, (playlist_dest_id, usuario_id))
+        if not destino:
+            return jsonify({"error": "Playlist de destino não encontrada"}), 404
+
+        entrada_origem = db.session.get(
+            MusicaPlaylist, (musica_id, playlist_orig_id, usuario_id)
+        )
+        if not entrada_origem:
+            return jsonify(
+                {"error": "Música não encontrada na playlist de origem"}
+            ), 404
+
+        if db.session.get(MusicaPlaylist, (musica_id, playlist_dest_id, usuario_id)):
+            return jsonify({"error": "Música já está na playlist de destino"}), 409
+
+        db.session.delete(entrada_origem)
+        db.session.flush()
+
+        entrada_destino = MusicaPlaylist(
+            musica_id=musica_id,
+            playlist_id=playlist_dest_id,
+            usuario_id=usuario_id,
+            ordem_na_playlist=ordem_destino,
+        )
+        db.session.add(entrada_destino)
+
+        db.session.commit()
+
+        return jsonify(
+            {
+                "mensagem": "Música transferida com sucesso",
+                "musica_id": musica_id,
+                "origem": {"playlist_id": playlist_orig_id, "nome": origem.nome},
+                "destino": {
+                    "playlist_id": playlist_dest_id,
+                    "nome": destino.nome,
+                    "ordem": ordem_destino,
+                },
+            }
+        ), 200
+
+    except Exception as e:
+        db.session.rollback()
+        return jsonify(
+            {"error": f"Transação falhou, nenhuma alteração foi feita: {str(e)}"}
+        ), 500
