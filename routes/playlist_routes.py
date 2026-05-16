@@ -165,3 +165,45 @@ def tempo_total_por_playlist():
             for r in resultados
         ]
     )
+
+
+@playlist_bp.route("/musicas/<string:nome_playlist>", methods=["GET"])
+def musicas_da_playlist(nome_playlist):
+    stmt = (
+        select(
+            Musica.id,
+            Musica.titulo,
+            Musica.duracao_segundos,
+            MusicaPlaylist.ordem_na_playlist,
+        )
+        .join(MusicaPlaylist, MusicaPlaylist.musica_id == Musica.id)
+        .join(
+            Playlist,
+            (Playlist.playlist_id == MusicaPlaylist.playlist_id)
+            & (Playlist.usuario_id == MusicaPlaylist.usuario_id),
+        )
+        .where(Playlist.nome == nome_playlist)
+        .order_by(MusicaPlaylist.ordem_na_playlist)
+    )
+
+    resultados = db.session.execute(stmt).all()
+
+    if not resultados:
+        return jsonify(
+            {"erro": f"Playlist '{nome_playlist}' não encontrada ou vazia"}
+        ), 404
+
+    return jsonify(
+        {
+            "playlist": nome_playlist,
+            "musicas": [
+                {
+                    "id": r.id,
+                    "titulo": r.titulo,
+                    "duracao_segundos": r.duracao_segundos,
+                    "ordem_na_playlist": r.ordem_na_playlist,
+                }
+                for r in resultados
+            ],
+        }
+    )
