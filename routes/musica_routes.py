@@ -2,6 +2,8 @@ from flask import Blueprint, request, jsonify
 from extensions import db
 from models.artista import Artista
 from models.musica import Musica
+from sqlalchemy import select
+from sqlalchemy.orm import joinedload
 
 musica_bp = Blueprint("musica", __name__, url_prefix="/musicas")
 
@@ -94,3 +96,27 @@ def deletar_musica(musica_id):
     db.session.commit()
 
     return jsonify({"mensagem": "Música deletada com sucesso"}), 200
+
+
+@musica_bp.route("/<int:musica_id>/detalhes", methods=["GET"])
+def buscar_musica_detalhes(musica_id):
+    stmt = (
+        select(Musica).where(Musica.id == musica_id).options(joinedload(Musica.artista))
+    )
+    musica = db.session.execute(stmt).scalar_one_or_none()
+
+    if not musica:
+        return jsonify({"erro": "Música não encontrada"}), 404
+
+    return jsonify(
+        {
+            "id": musica.id,
+            "titulo": musica.titulo,
+            "duracao_segundos": musica.duracao_segundos,
+            "artista": {
+                "id": musica.artista.id,
+                "nome": musica.artista.nome,
+                "nacionalidade": musica.artista.nacionalidade,
+            },
+        }
+    )
