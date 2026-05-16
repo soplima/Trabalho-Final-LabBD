@@ -3,7 +3,7 @@ from extensions import db
 from models.artista import Artista
 from models.musica import Musica
 from models.musica_playlist import MusicaPlaylist
-from sqlalchemy import select, exists
+from sqlalchemy import select, exists, func
 
 
 artista_bp = Blueprint("artista", __name__, url_prefix="/artistas")
@@ -110,5 +110,50 @@ def artistas_sem_musicas_em_playlists():
                 "nacionalidade": a.nacionalidade,
             }
             for a in artistas
+        ]
+    )
+
+
+@artista_bp.route("/ranking-popularidade", methods=["GET"])
+def ranking_popularidade():
+    stmt = (
+        select(
+            Artista.id,
+            Artista.nome,
+            Artista.nacionalidade,
+            func.count(
+                func.distinct(
+                    func.concat(
+                        MusicaPlaylist.playlist_id, "-", MusicaPlaylist.usuario_id
+                    )
+                )
+            ).label("total_playlists"),
+        )
+        .outerjoin(Musica, Musica.artista_id == Artista.id)
+        .outerjoin(MusicaPlaylist, MusicaPlaylist.musica_id == Musica.id)
+        .group_by(Artista.id, Artista.nome, Artista.nacionalidade)
+        .order_by(
+            func.count(
+                func.distinct(
+                    func.concat(
+                        MusicaPlaylist.playlist_id, "-", MusicaPlaylist.usuario_id
+                    )
+                )
+            ).desc()
+        )
+    )
+
+    resultados = db.session.execute(stmt).all()
+
+    return jsonify(
+        [
+            {
+                "rank": index + 1,
+                "artista_id": r.id,
+                "nome": r.nome,
+                "nacionalidade": r.nacionalidade,
+                "total_playlists": r.total_playlists,
+            }
+            for index, r in enumerate(resultados)
         ]
     )
