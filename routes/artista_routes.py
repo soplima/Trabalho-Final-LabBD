@@ -1,6 +1,10 @@
 from flask import Blueprint, request, jsonify
 from extensions import db
 from models.artista import Artista
+from models.musica import Musica
+from models.musica_playlist import MusicaPlaylist
+from sqlalchemy import select, exists
+
 
 artista_bp = Blueprint("artista", __name__, url_prefix="/artistas")
 
@@ -73,3 +77,38 @@ def deletar_artista(artista_id):
     db.session.commit()
 
     return jsonify({"mensagem": "Artista deletado com sucesso"}), 200
+
+
+@artista_bp.route("/sem-musicas-em-playlists", methods=["GET"])
+def artistas_sem_musicas_em_playlists():
+    musicas_em_playlist = (
+        select(Musica.artista_id)
+        .join(MusicaPlaylist, MusicaPlaylist.musica_id == Musica.id)
+        .distinct()
+        .subquery()
+    )
+
+    stmt = (
+        select(Artista)
+        .where(
+            ~exists(
+                select(musicas_em_playlist.c.artista_id).where(
+                    musicas_em_playlist.c.artista_id == Artista.id
+                )
+            )
+        )
+        .order_by(Artista.nome)
+    )
+
+    artistas = db.session.execute(stmt).scalars().all()
+
+    return jsonify(
+        [
+            {
+                "id": a.id,
+                "nome": a.nome,
+                "nacionalidade": a.nacionalidade,
+            }
+            for a in artistas
+        ]
+    )
