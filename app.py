@@ -19,10 +19,10 @@ def create_app():
     db.init_app(app)
     Migrate(app, db)
 
-    app.register_blueprint(artista_bp, url_prefix="/artista")
-    app.register_blueprint(musica_bp, url_prefix="/musica")
-    app.register_blueprint(usuario_bp, url_prefix="/usuario")
-    app.register_blueprint(playlist_bp, url_prefix="/playlist")
+    app.register_blueprint(artista_bp)
+    app.register_blueprint(musica_bp)
+    app.register_blueprint(usuario_bp)
+    app.register_blueprint(playlist_bp)
 
     return app
 
