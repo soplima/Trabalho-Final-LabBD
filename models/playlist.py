@@ -29,9 +29,5 @@ class Playlist(db.Model):
         back_populates="playlist", cascade="all, delete-orphan"
     )
 
-    musicas_playlist: Mapped[list["MusicaPlaylist"]] = relationship(
-        back_populates="playlist", cascade="all, delete-orphan"
-    )
-
     def __repr__(self):
         return f"<Playlist {self.nome}>"
